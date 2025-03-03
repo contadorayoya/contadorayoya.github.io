@@ -1,0 +1,397 @@
+/* Variables para colores (mantenidas para consistencia) */
+:root {
+  --color-primary: #007bff;
+  --color-primary-dark: #0056b3;
+  --color-success: #28a745;
+  --color-success-dark: #218838;
+  --color-danger: #dc3545;
+  --color-danger-dark: #c82333;
+  --color-secondary: #6c757d;
+  --color-secondary-dark: #5a6268;
+  --color-light: #f8f9fa;
+  --color-light-dark: #e9ecef;
+  --color-border: #ddd;
+  --color-text: #333;
+  --color-text-muted: #6c757d;
+  --color-debe: #f0fff4;
+  --color-haber: #fff3f5;
+  --color-obs-debe: #155724;
+  --color-obs-haber: #721c24;
+}
+
+/* Contenedor principal para el balance */
+.balance-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+}
+
+/* Estilos para el título */
+.balance-title {
+  text-align: center;
+  margin-bottom: 20px;
+  margin-top: -15px;
+  font-size: 20px;
+  color: var(--color-text);
+}
+
+/* Panel de control con botones y filtros - MODIFICADO: espacio reducido */
+.balance-control-panel {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 5px;  /* Reducido de 10px a 5px */
+  background-color: var(--color-light);
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  position: relative;
+}
+
+/* Contenedor de botones de acción - MODIFICADO: ajustado para estar más cerca de los filtros */
+.balance-action-buttons {
+  display: flex;
+  gap: 4px;  /* Reducido de 5px a 4px */
+  width: auto;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-right: 8px;
+}
+
+/* Estilos generales para los botones - MODIFICADO: tamaño fijo */
+.balance-save-btn, 
+.balance-excel-btn, 
+.balance-pdf-btn, 
+.balance-search-btn,
+.balance-return-btn {
+  width: 120px; /* Ancho fijo */
+  height: 50px; /* Alto fijo */
+  padding: 0; /* Elimina el relleno interno */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 13px; /* Tamaño de fuente reducido */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Estilos específicos para cada botón */
+.balance-return-btn {
+  background-color: var(--color-secondary);
+  color: white;
+}
+
+.balance-return-btn:hover {
+  background-color: var(--color-secondary-dark);
+}
+
+.balance-save-btn {
+  background-color: var(--color-secondary);
+  color: white;
+}
+
+.balance-excel-btn {
+  background-color: var(--color-success);
+  color: white;
+}
+
+.balance-excel-btn:hover {
+  background-color: var(--color-success-dark);
+}
+
+.balance-pdf-btn {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+.balance-pdf-btn:hover {
+  background-color: var(--color-danger-dark);
+}
+
+.balance-search-btn {
+  background-color: var(--color-primary);
+  color: white;
+  width: 100px; /* Ancho fijo */
+
+}
+
+.balance-search-btn:hover {
+  background-color: var(--color-primary-dark);
+}
+
+/* Botones deshabilitados */
+.balance-excel-btn:disabled,
+.balance-pdf-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Contenedor de filtros - MODIFICADO: ajustado para mejor distribución */
+.balance-filters-container {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: auto;
+  flex-grow: 1;
+}
+
+/* Grupos de filtros - MODIFICADO: compactado */
+.balance-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;  /* Reducido de 3px a 2px */
+  margin-right: 5px;
+}
+
+.balance-filter-group label {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: 13px;  /* Tamaño de fuente reducido */
+}
+
+/* Estilos para los selectores e inputs - MODIFICADO: tamaño reducido */
+.balance-empresa-select,
+.balance-year-input {
+  padding: 5px 8px;  /* Reducido de 6px 10px a 5px 8px */
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 13px;  /* Reducido de 14px a 13px */
+  min-width: 160px;  /* Reducido de 180px a 160px */
+  background-color: white;
+}
+
+/* Mensaje de éxito */
+.balance-save-success-message {
+  color: var(--color-success);
+  font-size: 13px;
+  margin-left: 5px;
+}
+
+/* Estados de carga y errores */
+.balance-loading, 
+.balance-no-data {
+  text-align: center;
+  padding: 30px;
+  color: var(--color-text-muted);
+  background-color: var(--color-light);
+  border-radius: 4px;
+  margin-top: 20px;
+}
+
+.balance-error-message {
+  color: var(--color-danger);
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+}
+
+/* Contenedor de tabla */
+.balance-table-wrapper {
+  overflow: auto;
+  max-height: 80vh;
+  max-width: 100%;
+  margin-top: 20px;
+  border: 1px solid var(--color-border);
+  margin-bottom: 12px;
+  background-color: white;
+}
+
+.balance-header-info {
+  margin-bottom: 0;
+  padding: 10px;
+  background-color: var(--color-light-dark);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.balance-header-info h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* Estilos para la tabla */
+.balance-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  background-color: white;
+  font-size: 14px;
+}
+
+.balance-data-table th,
+.balance-data-table td {
+  border: 1px solid var(--color-border);
+  padding: 8px;
+}
+
+/* Encabezados fijos en desplazamiento vertical */
+.balance-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #f4f4f4;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Segunda fila de encabezados sin espacio */
+.balance-data-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 36px;
+  z-index: 10;
+}
+
+/* Estilos para celdas de categoría */
+.balance-category-header,
+.balance-account-name-header,
+.balance-category-btn-header {
+  background-color: var(--color-light-dark);
+}
+
+.balance-amount-header {
+  text-align: right;
+}
+
+/* Estilos para filas */
+.balance-data-row:nth-child(even) {
+  background-color: var(--color-light);
+}
+
+.balance-data-row:hover {
+  background-color: #f0f0f0;
+}
+
+.balance-blank-row td {
+  background-color: #f9f9f9;
+  height: 10px;
+  padding: 0;
+}
+
+.balance-sumas-row {
+  background-color: var(--color-light-dark);
+  font-weight: 500;
+}
+
+.balance-utilidad-row {
+  background-color: #e8f4ff;
+  font-weight: 500;
+}
+
+.balance-total-row {
+  background-color: #0f317b;
+  color: rgb(20, 19, 51);
+  font-weight: bold;
+}
+
+/* Estilos para celdas específicas */
+.balance-tipo-cell {
+  font-weight: 500;
+}
+
+.balance-monto-cell {
+  text-align: right;
+  min-width: 120px;
+}
+
+.balance-category-cell {
+  text-align: center;
+}
+
+/* Estilos para botones de categoría */
+.balance-category-btn {
+  padding: 2px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background-color: var(--color-light);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.balance-activo-btn:hover {
+  background-color: rgba(0, 123, 255, 0.2);
+}
+
+.balance-pasivo-btn:hover {
+  background-color: rgba(108, 117, 125, 0.2);
+}
+
+.balance-perdidas-btn:hover {
+  background-color: rgba(220, 53, 69, 0.2);
+}
+
+.balance-ganancias-btn:hover {
+  background-color: rgba(40, 167, 69, 0.2);
+}
+
+/* Responsive - MODIFICADO: mejorado para pantallas pequeñas */
+@media screen and (max-width: 1200px) {
+  .balance-control-panel {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .balance-action-buttons,
+  .balance-filters-container {
+    width: auto;
+    justify-content: flex-start;
+    margin-bottom: 5px;
+  }
+  
+  .balance-empresa-select,
+  .balance-year-input {
+    min-width: 140px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .balance-control-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .balance-action-buttons {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  
+  .balance-filters-container {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Estilos para impresión */
+@media print {
+  .balance-control-panel {
+    display: none;
+  }
+  
+  body {
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+  }
+  
+  .balance-container {
+    padding: 0;
+  }
+  
+  .balance-data-table th,
+  .balance-data-table td {
+    font-size: 10px;
+    padding: 4px;
+  }
+}
