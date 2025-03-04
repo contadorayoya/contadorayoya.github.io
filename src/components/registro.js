@@ -13,7 +13,6 @@ const Registro = ({ onBack }) => {
       tipo: "", 
       tipoTransaccion: "debe", // Por defecto "debe"
       monto: "",
-      observacion: "" // Campo para observaciones
     }],
     total: 0
   });
@@ -36,7 +35,7 @@ const Registro = ({ onBack }) => {
 
   const tiposBase = [
     "Caja", "Ingreso", "Costo", "IVA", "PPM", "Ajuste CF", 
-    "Retencion SC", "Honorarios", "Gastos Generales", "Cuentas Varias"
+    "Retencion SC", "Honorarios", "Gastos Generales"
   ];
 
   useEffect(() => {
@@ -79,7 +78,7 @@ const Registro = ({ onBack }) => {
   useEffect(() => {
     const usados = new Set();
     registroForm.datos.forEach(dato => {
-      if (dato.tipo && dato.tipo !== "Cuentas Varias") {
+      if (dato.tipo) {
         usados.add(dato.tipo);
       }
     });
@@ -304,10 +303,6 @@ const Registro = ({ onBack }) => {
       if (!dato.monto) {
         newErrors[`monto${index}`] = "Ingrese el monto";
       }
-      // Validar observación si es Cuentas Varias
-      if (dato.tipo === "Cuentas Varias" && !dato.observacion) {
-        newErrors[`observacion${index}`] = "Ingrese una observación para Cuentas Varias";
-      }
     });
 
     // Validar balance de debe y haber
@@ -393,7 +388,6 @@ const Registro = ({ onBack }) => {
           detalle: dato.detalle,
           control: controlValue, // Control automático
           tipo: dato.tipo,
-          observacion: dato.observacion || "", // Incluir observación en la BD
           monto: parseFloat(dato.monto) || 0,
           date: new Date().toISOString()
         });
@@ -407,7 +401,6 @@ const Registro = ({ onBack }) => {
           tipo: "", 
           tipoTransaccion: "debe",
           monto: "",
-          observacion: ""
         }],
         total: 0
       }));
@@ -438,7 +431,7 @@ const Registro = ({ onBack }) => {
     const newDatos = [...registroForm.datos];
     
     // Si estamos cambiando el tipo, verificar si ya está en uso
-    if (field === 'tipo' && value !== "Cuentas Varias" && value !== "" && tiposUsados.has(value)) {
+    if (field === 'tipo' && value !== "" && tiposUsados.has(value)) {
       setNotification({
         show: true,
         message: `El tipo "${value}" ya ha sido seleccionado`,
@@ -521,9 +514,7 @@ const Registro = ({ onBack }) => {
           detalle: prev.datos[0].detalle, // Copiar el detalle del primer dato
           tipo: "", 
           tipoTransaccion: "debe",
-          monto: "",
-          observacion: ""
-        }
+          monto: ""        }
       ]
     }));
   };
@@ -557,13 +548,13 @@ const Registro = ({ onBack }) => {
     // Combinar tipos base y personalizados
     const allTipos = [...tiposBase, ...customTipos];
     
-    if (currentTipo && currentTipo !== "Cuentas Varias" && tiposUsados.has(currentTipo)) {
+    if (currentTipo && tiposUsados.has(currentTipo)) {
       // Si el tipo actual ya está seleccionado, permitir mantenerlo
       return allTipos;
     }
     
     return allTipos.filter(tipo => 
-      tipo === "Cuentas Varias" || !tiposUsados.has(tipo) || tipo === currentTipo
+      !tiposUsados.has(tipo) || tipo === currentTipo
     );
   };
 
@@ -581,7 +572,7 @@ const Registro = ({ onBack }) => {
       <div className="header">
         <h2>{isEditing ? 'Editar Registro' : 'Hacer Registro'}</h2>
         <div className="header-buttons">
-          <button onClick={onBack} className="back-button">
+          <button onClick={onBack} className="back-btn">
             Atrás
           </button>
         </div>
@@ -661,13 +652,13 @@ const Registro = ({ onBack }) => {
               className="add-tipo-button"
               type="button"
             >
-              Crear Nuevo Tipo
+              Crear Nueva Cuenta
             </button>
           ) : (
             <div className="new-tipo-input-container">
               <input
                 type="text"
-                placeholder="Nombre del nuevo tipo"
+                placeholder="Nombre de la nueva Cuenta"
                 value={newTipoInput}
                 onChange={(e) => setNewTipoInput(e.target.value)}
                 className="new-tipo-input"
@@ -710,7 +701,7 @@ const Registro = ({ onBack }) => {
 
       {/* Datos section */}
       <div className="datos-section">
-        <h3>Datos ({registroForm.datos.length})</h3>
+        <h3>Cuentas ({registroForm.datos.length})</h3>
         
         {registroForm.datos.map((dato, index) => (
           <div key={index} className="dato-container">
@@ -773,28 +764,14 @@ const Registro = ({ onBack }) => {
               )}
             </div>
 
-            {/* Campo de observación para Cuentas Varias */}
-            {dato.tipo === "Cuentas Varias" && (
-              <div className="form-group observacion-field">
-                <label>Observación:</label>
-                <input
-                  type="text"
-                  placeholder="Describa la observación del monto"
-                  value={dato.observacion || ""}
-                  onChange={(e) => handleDatoChange(index, 'observacion', e.target.value)}
-                  className={errors[`observacion${index}`] ? 'error' : ''}
-                />
-                {errors[`observacion${index}`] && <span className="error-message">{errors[`observacion${index}`]}</span>}
-              </div>
-            )}
-            
+           
             {index < registroForm.datos.length - 1 && <hr className="dato-divider" />}
           </div>
         ))}
         
         {/* Botón para agregar datos sin límite */}
         <button onClick={addDatoRow} className="add-button" type="button">
-          Agregar Dato
+          Agregar Cuentas
         </button>
       </div>
 
@@ -822,7 +799,7 @@ const Registro = ({ onBack }) => {
         </button>
         <button 
           onClick={onBack} 
-          className="back-button"
+          className="back-btn"
           disabled={loading}
           type="button"
         >

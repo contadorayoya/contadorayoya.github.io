@@ -35,7 +35,7 @@ const exportToExcel = async () => {
   const worksheet = workbook.addWorksheet('Balance General');
   
   // Format title
-  worksheet.mergeCells('A1:L1');
+  worksheet.mergeCells('A1:M1');
   const titleCell = worksheet.getCell('A1');
   titleCell.value = 'BALANCE GENERAL';
   titleCell.font = { bold: true, size: 16 };
@@ -46,23 +46,24 @@ const exportToExcel = async () => {
   // Company info rows
   worksheet.getCell('A3').value = `Nombre o razón social: ${selectedEmpresa}`;
   worksheet.getCell('A3').font = { bold: true };
-  worksheet.getCell('I3').value = `RUT: ${rut}`;
-  worksheet.getCell('I3').font = { bold: true };
+  worksheet.getCell('J3').value = `RUT: ${rut}`;
+  worksheet.getCell('J3').font = { bold: true };
   
   worksheet.getCell('A4').value = `DIRECCIÓN: ${direccion}`;
   worksheet.getCell('A4').font = { bold: true };
-  worksheet.getCell('I4').value = `COMUNA: ${comuna}`;
-  worksheet.getCell('I4').font = { bold: true };
+  worksheet.getCell('J4').value = `COMUNA: ${comuna}`;
+  worksheet.getCell('J4').font = { bold: true };
   
   worksheet.getCell('A5').value = `GIRO: ${giro}`;
   worksheet.getCell('A5').font = { bold: true };
   
   worksheet.getCell('A6').value = `EJERCICIO COMPRENDIDO ENTRE EL 01 DE ENERO DE ${selectedAño} AL 31 DE DICIEMBRE DE ${selectedAño}`;
   worksheet.getCell('A6').font = { bold: true };
-  worksheet.mergeCells('A6:L6');
+  worksheet.mergeCells('A6:M6');
   
   // Table headers - row 7
   const headerRow = worksheet.addRow([
+    '', // Extra column shifted to the right
     'Nombre de Cuentas', 
     'Débito', 
     'Crédito', 
@@ -88,6 +89,7 @@ const exportToExcel = async () => {
   
   // Format columns
   worksheet.columns = [
+    { key: 'empty', width: 5 }, // Empty first column
     { key: 'tipo', width: 30 },
     { key: 'debe', width: 15 },
     { key: 'haber', width: 15 },
@@ -103,6 +105,7 @@ const exportToExcel = async () => {
   balanceData.forEach((item) => {
     if (!item.isBlank) {
       const row = worksheet.addRow([
+        '', // Empty first column
         item.tipo,
         item.debe > 0 ? item.debe : '',
         item.haber > 0 ? item.haber : '',
@@ -115,7 +118,6 @@ const exportToExcel = async () => {
       ]);
       
       // Apply number format
-      row.getCell(2).numFmt = '#,##0.00';
       row.getCell(3).numFmt = '#,##0.00';
       row.getCell(4).numFmt = '#,##0.00';
       row.getCell(5).numFmt = '#,##0.00';
@@ -123,6 +125,7 @@ const exportToExcel = async () => {
       row.getCell(7).numFmt = '#,##0.00';
       row.getCell(8).numFmt = '#,##0.00';
       row.getCell(9).numFmt = '#,##0.00';
+      row.getCell(10).numFmt = '#,##0.00';
       
       // Apply styles to special rows
       if (item.isSumas || item.isUtilidad || item.isTotal) {
@@ -153,32 +156,28 @@ const exportToExcel = async () => {
   const lastRow = worksheet.lastRow.number + 1;
   
   // Signature line for Contador
-  worksheet.getCell(`A${lastRow}`).value = '_______________________';
-  worksheet.getCell(`A${lastRow + 1}`).value = 'CONTADOR';
-  worksheet.getCell(`A${lastRow + 1}`).font = { bold: true };
-  worksheet.getCell(`A${lastRow + 1}`).alignment = { horizontal: 'center' };
-  worksheet.mergeCells(`A${lastRow}:C${lastRow}`);
-  worksheet.getCell(`A${lastRow}`).alignment = { horizontal: 'center' };
-  worksheet.mergeCells(`A${lastRow + 1}:C${lastRow + 1}`);
+  worksheet.getCell(`B${lastRow}`).value = '_______________________';
+  worksheet.getCell(`B${lastRow + 1}`).value = 'CONTADOR';
+  worksheet.getCell(`B${lastRow + 1}`).font = { bold: true };
+  worksheet.getCell(`B${lastRow + 1}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`B${lastRow}:D${lastRow}`);
+  worksheet.getCell(`B${lastRow}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`B${lastRow + 1}:D${lastRow + 1}`);
   
   // Signature line for Representante Legal
-  worksheet.getCell(`F${lastRow}`).value = '_______________________';
-  worksheet.getCell(`F${lastRow + 1}`).value = 'REPRESENTANTE LEGAL';
-  worksheet.getCell(`F${lastRow + 1}`).font = { bold: true };
-  worksheet.getCell(`F${lastRow + 1}`).alignment = { horizontal: 'center' };
-  worksheet.mergeCells(`F${lastRow}:I${lastRow}`);
-  worksheet.getCell(`F${lastRow}`).alignment = { horizontal: 'center' };
-  worksheet.mergeCells(`F${lastRow + 1}:I${lastRow + 1}`);
+  worksheet.getCell(`G${lastRow}`).value = '_______________________';
+  worksheet.getCell(`G${lastRow + 1}`).value = 'REPRESENTANTE LEGAL';
+  worksheet.getCell(`G${lastRow + 1}`).font = { bold: true };
+  worksheet.getCell(`G${lastRow + 1}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`G${lastRow}:J${lastRow}`);
+  worksheet.getCell(`G${lastRow}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`G${lastRow + 1}:J${lastRow + 1}`);
   
   // Generate the Excel file
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, `Balance_${selectedEmpresa}_${selectedAño}.xlsx`);
 };
-
-
-
-
 
 
   // Cargar empresas desde Firebase
@@ -590,19 +589,11 @@ const exportToExcel = async () => {
           </button>
           
           <button 
-  className="balance-excel-btn"
-  disabled={!balanceData.length || loading}
-  onClick={exportToExcel}
->
-  Exportar a Excel
-</button>
-          
-          <button 
-            className="balance-pdf-btn"
+            className="balance-excel-btn"
             disabled={!balanceData.length || loading}
-            onClick={() => { /* Lógica para exportar a PDF */ }}
+            onClick={exportToExcel}
           >
-            Exportar a PDF
+            Exportar a Excel
           </button>
         </div>
         

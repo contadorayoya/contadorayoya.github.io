@@ -21,7 +21,8 @@ function Historial({ onBack }) {
   const tipos = [
     "Caja", "Ingreso", "Costo", "IVA", "PPM", 
     "Ajuste CF", "Retencion SC", "Honorarios", 
-    "Gastos Generales", "Cuentas Varias"
+    "Gastos Generales"
+    // "Cuentas Varias" - Eliminado como solicitado
   ];
 
   const unsubscribeRef = React.useRef(null);
@@ -34,11 +35,30 @@ function Historial({ onBack }) {
         setFetchingEmpresas(true);
         setError(null);
         
-        // Obtener documentos desde la colección 'registros'
-        const empresas = [];
+        // Paso 1: Obtener empresas válidas desde la colección 'empresas'
+        const validEmpresas = new Set();
+        const empresasCol = collection(db, 'empresas');
+        const empresasSnapshot = await getDocs(empresasCol);
+        
+        if (!empresasSnapshot.empty) {
+          console.log(`Se encontraron ${empresasSnapshot.size} documentos en la colección empresas`);
+          
+          empresasSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.nombre) {
+              validEmpresas.add(data.nombre);
+            }
+          });
+          
+          console.log(`Empresas válidas en la colección empresas: ${Array.from(validEmpresas).join(', ')}`);
+        } else {
+          console.log("No hay documentos en la colección empresas");
+        }
+        
+        // Paso 2: Obtener años desde la colección 'registros'
+        const empresasFromRegistros = [];
         const years = [];
         
-        // Consulta a la colección 'registros'
         const registrosCol = collection(db, 'registros');
         const registrosSnapshot = await getDocs(registrosCol);
         
@@ -49,7 +69,10 @@ function Historial({ onBack }) {
             const data = doc.data();
             
             if (data.empresa) {
-              empresas.push(data.empresa);
+              // Solo agregamos a la lista si la empresa existe en la colección 'empresas'
+              if (validEmpresas.has(data.empresa)) {
+                empresasFromRegistros.push(data.empresa);
+              }
             }
             
             if (data.año) {
@@ -61,17 +84,17 @@ function Historial({ onBack }) {
           console.log("No hay documentos en la colección registros");
         }
         
-        if (empresas.length === 0 && years.length === 0) {
+        if (empresasFromRegistros.length === 0 && years.length === 0) {
           setError("No se encontraron registros en la base de datos");
           setFetchingEmpresas(false);
           return;
         }
         
-        console.log(`Total empresas extraídas: ${empresas.length}`);
+        console.log(`Total empresas válidas extraídas: ${empresasFromRegistros.length}`);
         console.log(`Total años extraídos: ${years.length}`);
         
         // Eliminar duplicados y valores nulos
-        const uniqueEmpresas = [...new Set(empresas)].filter(Boolean);
+        const uniqueEmpresas = [...new Set(empresasFromRegistros)].filter(Boolean);
         const uniqueYears = [...new Set(years)].filter(Boolean);
         
         console.log(`Empresas únicas: ${uniqueEmpresas.join(', ')}`);
@@ -186,99 +209,6 @@ function Historial({ onBack }) {
     }).format(numValue);
   };
 
-  // Función para procesar las transacciones del mes
-  const getMonthTransactions = (mes) => {
-    if (!transactions.length) {
-      return [];
-    }
-    
-    console.log(`Obteniendo transacciones para el mes: ${mes}`);
-    
-    const monthTransactions = transactions.filter(t => t.mes === mes);
-    
-    console.log(`Encontradas ${monthTransactions.length} transacciones para ${mes}`);
-    
-    const result = [];
-    
-    // Procesamos los registros de la nueva estructura
-    monthTransactions.forEach(transaction => {
-      // Verificamos si existe el array datos
-      if (transaction.datos && transaction.datos.length > 0) {
-        // Extraer cuentas varias para procesarlas por separado
-        const cuentasVariasDebe = transaction.datos
-          .filter(item => item.tipo === "Cuentas Varias" && item.tipoTransaccion === "debe")
-          .map(item => ({ 
-            observacion: item.observacion, 
-            monto: parseFloat(item.monto)
-          }));
-          
-        const cuentasVariasHaber = transaction.datos
-          .filter(item => item.tipo === "Cuentas Varias" && item.tipoTransaccion === "haber")
-          .map(item => ({ 
-            observacion: item.observacion, 
-            monto: parseFloat(item.monto)
-          }));
-        
-        // Extraer tipos personalizados (que no están en la lista de tipos predefinidos)
-        const tiposPersonalizadosDebe = transaction.datos
-          .filter(item => !tipos.includes(item.tipo) && item.tipoTransaccion === "debe")
-          .map(item => ({
-            tipo: item.tipo,
-            observacion: item.observacion,
-            monto: parseFloat(item.monto),
-            detalle: item.detalle
-          }));
-        
-        const tiposPersonalizadosHaber = transaction.datos
-          .filter(item => !tipos.includes(item.tipo) && item.tipoTransaccion === "haber")
-          .map(item => ({
-            tipo: item.tipo,
-            observacion: item.observacion,
-            monto: parseFloat(item.monto),
-            detalle: item.detalle
-          }));
-        
-        // Agrupar los items que no son cuentas varias
-        const groupedItem = {
-          control: transaction.control,
-          detalle: transaction.datos[0]?.detalle || '',
-          debe: {},
-          haber: {},
-          fecha: transaction.date,
-          cuentasVariasDebe,
-          cuentasVariasHaber,
-          tiposPersonalizadosDebe,
-          tiposPersonalizadosHaber
-        };
-        
-        // Procesar items regulares
-        transaction.datos.forEach(item => {
-          if (tipos.includes(item.tipo)) {
-            if (item.tipoTransaccion === 'debe') {
-              groupedItem.debe[item.tipo] = parseFloat(item.monto);
-            } else if (item.tipoTransaccion === 'haber') {
-              groupedItem.haber[item.tipo] = parseFloat(item.monto);
-            }
-          }
-        });
-        
-        // Añadir el item agrupado principal
-        result.push(groupedItem);
-      }
-    });
-    
-    // Ordenar por fecha (si está disponible)
-    result.sort((a, b) => {
-      if (a.fecha && b.fecha) {
-        if (a.fecha < b.fecha) return -1;
-        if (a.fecha > b.fecha) return 1;
-      }
-      return 0;
-    });
-    
-    return result;
-  };
-
   // Obtener todos los tipos personalizados en las transacciones
   const getAllCustomTypes = () => {
     const customTypes = new Set();
@@ -296,89 +226,80 @@ function Historial({ onBack }) {
     return Array.from(customTypes).sort();
   };
 
+  // Función para procesar las transacciones del mes
+  const getMonthTransactions = (mes) => {
+    if (!transactions.length) {
+      return [];
+    }
+    
+    console.log(`Obteniendo transacciones para el mes: ${mes}`);
+    
+    // Filtrar transacciones del mes
+    const monthTransactions = transactions.filter(t => t.mes === mes);
+    
+    console.log(`Encontradas ${monthTransactions.length} transacciones para ${mes}`);
+    
+    // Agrupar transacciones por detalle
+    const groupedByDetail = {};
+    
+    monthTransactions.forEach(transaction => {
+      // Crear una clave única basada en detalle
+      const detalle = transaction.datos && transaction.datos.length > 0 
+        ? transaction.datos[0]?.detalle || 'Sin detalle' 
+        : 'Sin detalle';
+      
+      if (!groupedByDetail[detalle]) {
+        groupedByDetail[detalle] = {
+          control: transaction.control,
+          detalle: detalle,
+          fecha: transaction.date,
+          debe: {},
+          haber: {}
+        };
+      }
+      
+      // Procesar todos los datos y mantenerlos en la misma entrada
+      if (transaction.datos && transaction.datos.length > 0) {
+        transaction.datos.forEach(item => {
+          if (item.tipoTransaccion === 'debe') {
+            groupedByDetail[detalle].debe[item.tipo] = parseFloat(item.monto);
+          } else if (item.tipoTransaccion === 'haber') {
+            groupedByDetail[detalle].haber[item.tipo] = parseFloat(item.monto);
+          }
+        });
+      }
+    });
+    
+    // Convertir el objeto agrupado a un array
+    const result = Object.values(groupedByDetail);
+    
+    // Ordenar por fecha (si está disponible)
+    result.sort((a, b) => {
+      if (a.fecha && b.fecha) {
+        if (a.fecha < b.fecha) return -1;
+        if (a.fecha > b.fecha) return 1;
+      }
+      return 0;
+    });
+    
+    return result;
+  };
+
   // Función para renderizar filas de un mes específico
   const renderMonthRows = (mes) => {
     const monthTransactions = getMonthTransactions(mes);
     const customTypes = getAllCustomTypes();
     
-    // Determinar el número de filas necesarias basadas en transacciones normales y cuentas varias
-    let maxRows = 6; // Mínimo 6 filas por mes
-    
-    if (monthTransactions.length > 0) {
-      // Contar filas necesarias para cuentas varias y tipos personalizados
-      const extraRows = monthTransactions.reduce((total, t) => {
-        const cuentasVariasCount = Math.max(
-          (t.cuentasVariasDebe?.length || 0),
-          (t.cuentasVariasHaber?.length || 0)
-        );
-        
-        const tiposPersonalizadosCount = Math.max(
-          (t.tiposPersonalizadosDebe?.length || 0),
-          (t.tiposPersonalizadosHaber?.length || 0)
-        );
-        
-        return total + Math.max(cuentasVariasCount, tiposPersonalizadosCount);
-      }, 0);
-      
-      // El total de filas es el máximo entre las transacciones regulares + filas extra o 6
-      maxRows = Math.max(maxRows, monthTransactions.length + extraRows);
-    }
+    // Determinar el número de filas necesarias
+    const numRows = Math.max(6, monthTransactions.length); // Mínimo 6 filas por mes
     
     // Preparar array para las filas
-    const rowsToRender = Array(maxRows).fill(null);
-    
-    let currentRowIndex = 0;
+    const rowsToRender = Array(numRows).fill(null);
     
     // Llenar con transacciones existentes
-    monthTransactions.forEach(transaction => {
-      // Asignar la transacción principal a la primera fila
-      rowsToRender[currentRowIndex] = {
-        ...transaction,
-        isMainRow: true,
-        cuentasVariasDebeItem: transaction.cuentasVariasDebe && transaction.cuentasVariasDebe.length > 0 
-          ? transaction.cuentasVariasDebe[0] : null,
-        cuentasVariasHaberItem: transaction.cuentasVariasHaber && transaction.cuentasVariasHaber.length > 0 
-          ? transaction.cuentasVariasHaber[0] : null,
-        tipoPersonalizadoDebeItem: transaction.tiposPersonalizadosDebe && transaction.tiposPersonalizadosDebe.length > 0
-          ? transaction.tiposPersonalizadosDebe[0] : null,
-        tipoPersonalizadoHaberItem: transaction.tiposPersonalizadosHaber && transaction.tiposPersonalizadosHaber.length > 0
-          ? transaction.tiposPersonalizadosHaber[0] : null
-      };
-      currentRowIndex++;
-      
-      // Determinar cuál lista es más larga entre cuentas varias y tipos personalizados
-      const maxExtraItemsLength = Math.max(
-        (transaction.cuentasVariasDebe?.length || 0) - 1, // -1 porque ya incluimos el primer elemento
-        (transaction.cuentasVariasHaber?.length || 0) - 1, // -1 porque ya incluimos el primer elemento
-        (transaction.tiposPersonalizadosDebe?.length || 0) - 1,
-        (transaction.tiposPersonalizadosHaber?.length || 0) - 1
-      );
-      
-      // Agregar filas para el resto de items
-      for (let i = 0; i < maxExtraItemsLength; i++) {
-        const debeIndex = i + 1; // +1 porque el índice 0 ya está incluido en la fila principal
-        const haberIndex = i + 1; // +1 porque el índice 0 ya está incluido en la fila principal
-        
-        rowsToRender[currentRowIndex] = {
-          isExtraRow: true,
-          cuentasVariasDebeItem: transaction.cuentasVariasDebe && transaction.cuentasVariasDebe.length > debeIndex 
-            ? transaction.cuentasVariasDebe[debeIndex] : null,
-          cuentasVariasHaberItem: transaction.cuentasVariasHaber && transaction.cuentasVariasHaber.length > haberIndex 
-            ? transaction.cuentasVariasHaber[haberIndex] : null,
-          tipoPersonalizadoDebeItem: transaction.tiposPersonalizadosDebe && transaction.tiposPersonalizadosDebe.length > debeIndex
-            ? transaction.tiposPersonalizadosDebe[debeIndex] : null,
-          tipoPersonalizadoHaberItem: transaction.tiposPersonalizadosHaber && transaction.tiposPersonalizadosHaber.length > haberIndex
-            ? transaction.tiposPersonalizadosHaber[haberIndex] : null
-        };
-        currentRowIndex++;
-      }
+    monthTransactions.forEach((transaction, index) => {
+      rowsToRender[index] = transaction;
     });
-    
-    // Añadir filas vacías si no hemos llegado al mínimo
-    while (currentRowIndex < 6) {
-      rowsToRender[currentRowIndex] = null;
-      currentRowIndex++;
-    }
     
     return (
       <React.Fragment key={mes}>
@@ -390,79 +311,36 @@ function Historial({ onBack }) {
               </td>
             )}
             <td className="detalle-cell">
-              {rowData && rowData.isMainRow ? rowData.detalle || '-' : '-'}
+              {rowData ? rowData.detalle || '-' : '-'}
             </td>
             <td className="control-cell">
-              {rowData && rowData.isMainRow ? formatCurrency(rowData.control) : '-'}
+              {rowData ? formatCurrency(rowData.control) : '-'}
             </td>
             {tipos.map(tipo => {
-              if (tipo !== "Cuentas Varias") {
-                // Para tipos normales
-                let debeValue = '';
-                let haberValue = '';
+              // Para tipos normales
+              let debeValue = '';
+              let haberValue = '';
                 
-                if (rowData && rowData.isMainRow) {
-                  if (rowData.debe && rowData.debe[tipo] !== undefined) {
-                    debeValue = rowData.debe[tipo];
-                  }
-                  
-                  if (rowData.haber && rowData.haber[tipo] !== undefined) {
-                    haberValue = rowData.haber[tipo];
-                  }
+              if (rowData) {
+                if (rowData.debe && rowData.debe[tipo] !== undefined) {
+                  debeValue = rowData.debe[tipo];
                 }
-                
-                return (
-                  <React.Fragment key={`${mes}-${index}-${tipo}`}>
-                    <td className="monto-cell debe">
-                      {debeValue !== '' ? formatCurrency(debeValue) : '-'}
-                    </td>
-                    <td className="monto-cell haber">
-                      {haberValue !== '' ? formatCurrency(haberValue) : '-'}
-                    </td>
-                  </React.Fragment>
-                );
-              } else {
-                // Para Cuentas Varias
-                let debeValue = '';
-                let haberValue = '';
-                let debeObservacion = '';
-                let haberObservacion = '';
-                
-                if (rowData) {
-                  if (rowData.cuentasVariasDebeItem) {
-                    debeValue = rowData.cuentasVariasDebeItem.monto;
-                    debeObservacion = rowData.cuentasVariasDebeItem.observacion;
-                  }
                   
-                  if (rowData.cuentasVariasHaberItem) {
-                    haberValue = rowData.cuentasVariasHaberItem.monto;
-                    haberObservacion = rowData.cuentasVariasHaberItem.observacion;
-                  }
+                if (rowData.haber && rowData.haber[tipo] !== undefined) {
+                  haberValue = rowData.haber[tipo];
                 }
-                
-                return (
-                  <React.Fragment key={`${mes}-${index}-${tipo}`}>
-                    <td className="monto-cell debe">
-                      {debeValue !== '' ? formatCurrency(debeValue) : '-'}
-                    </td>
-                    <td className="monto-cell haber">
-                      {haberValue !== '' ? formatCurrency(haberValue) : '-'}
-                    </td>
-                    <td className="observacion-cell">
-                      {(debeObservacion || haberObservacion) ? (
-                        <div>
-                          {debeObservacion ? (
-                            <div className="obs-debe">{debeObservacion}</div>
-                          ) : null}
-                          {haberObservacion ? (
-                            <div className="obs-haber">{haberObservacion}</div>
-                          ) : null}
-                        </div>
-                      ) : '-'}
-                    </td>
-                  </React.Fragment>
-                );
               }
+                
+              return (
+                <React.Fragment key={`${mes}-${index}-${tipo}`}>
+                  <td className="monto-cell debe">
+                    {debeValue !== '' ? formatCurrency(debeValue) : '-'}
+                  </td>
+                  <td className="monto-cell haber">
+                    {haberValue !== '' ? formatCurrency(haberValue) : '-'}
+                  </td>
+                </React.Fragment>
+              );
             })}
             
             {/* Columnas para tipos personalizados */}
@@ -471,13 +349,12 @@ function Historial({ onBack }) {
               let haberValue = '';
               
               if (rowData) {
-                // Para la fila principal o filas extra
-                if (rowData.tipoPersonalizadoDebeItem && rowData.tipoPersonalizadoDebeItem.tipo === tipo) {
-                  debeValue = rowData.tipoPersonalizadoDebeItem.monto;
+                if (rowData.debe && rowData.debe[tipo] !== undefined) {
+                  debeValue = rowData.debe[tipo];
                 }
                 
-                if (rowData.tipoPersonalizadoHaberItem && rowData.tipoPersonalizadoHaberItem.tipo === tipo) {
-                  haberValue = rowData.tipoPersonalizadoHaberItem.monto;
+                if (rowData.haber && rowData.haber[tipo] !== undefined) {
+                  haberValue = rowData.haber[tipo];
                 }
               }
               
@@ -572,13 +449,9 @@ function Historial({ onBack }) {
                     <th className="fixed-column control-header" rowSpan="2">Control</th>
                     
                     {tipos.map(tipo => (
-                      <React.Fragment key={`header-${tipo}`}>
-                        {tipo !== "Cuentas Varias" ? (
-                          <th className="tipo-header" colSpan="2">{tipo}</th>
-                        ) : (
-                          <th className="tipo-header" colSpan="3">Cuentas Varias</th>
-                        )}
-                      </React.Fragment>
+                      <th className="tipo-header" key={`header-${tipo}`} colSpan="2">
+                        {tipo}
+                      </th>
                     ))}
                     
                     {/* Encabezados para tipos personalizados */}
@@ -594,9 +467,6 @@ function Historial({ onBack }) {
                       <React.Fragment key={`subheader-${tipo}`}>
                         <th className="debe-header">Debe</th>
                         <th className="haber-header">Haber</th>
-                        {tipo === "Cuentas Varias" && (
-                          <th className="observacion-header">Observaciones</th>
-                        )}
                       </React.Fragment>
                     ))}
                     

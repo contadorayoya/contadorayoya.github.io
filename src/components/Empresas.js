@@ -74,7 +74,7 @@ function Empresas({ onBack }) {
     <div className="container">
       <h2>Gestión de Empresas</h2>
       
-      <button onClick={onBack} className="back-button">
+      <button onClick={onBack} className="back-bttn">
         Volver al Menú Principal
       </button>
 

@@ -21,14 +21,14 @@
 
 /* Container principal */
 .registro-container, .historial-container {
-  padding: 10px;
+  padding: 1px;
   max-width: 100%;
   overflow-x: auto;
 }
 
 /* Title and header styles */
 .registro-title, .historial-container h2, .historial-container .title {
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   margin-top: 10px;
   font-size: 22px;
   color: var(--color-text);
@@ -144,15 +144,17 @@
 }
 
 .back-button {
+  position: absolute;
+  right: 20px;
+  bottom: 40px; /* Se coloca en la parte inferior */
   background-color: var(--color-secondary);
   color: white;
-  position: relative;
-  right: 15px;
-  top: 150px;
-  padding: 8px 150px;
+  padding: 8px 15px;
   border-radius: 4px;
   z-index: 20;
 }
+
+
 
 .back-button:hover {
   background-color: var(--color-secondary-dark);
