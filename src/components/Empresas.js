@@ -6,6 +6,7 @@ import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from 'fireb
 function Empresas({ onBack }) {
   const [nombre, setNombre] = useState('');
   const [rut, setRut] = useState('');
+  const [rutFormateado, setRutFormateado] = useState('');
   const [empresas, setEmpresas] = useState([]);
 
   useEffect(() => {
@@ -20,16 +21,60 @@ function Empresas({ onBack }) {
     return () => unsubscribe();
   }, []);
 
+  // Función para formatear el RUT
+  const formatearRut = (rutInput) => {
+    // Eliminar todos los caracteres no alfanuméricos
+    let rutLimpio = rutInput.replace(/[^0-9kK]/g, '');
+    
+    // Separar dígito verificador
+    let dv = rutLimpio.slice(-1);
+    let rutNumeros = rutLimpio.slice(0, -1);
+    
+    // Formatear con puntos y guion
+    let rutFormateado = '';
+    
+    // Agregar puntos de miles
+    for (let i = rutNumeros.length; i > 0; i -= 3) {
+      const inicio = Math.max(0, i - 3);
+      rutFormateado = (i === rutNumeros.length ? '' : '.') + 
+                       rutNumeros.substring(inicio, i) + 
+                       rutFormateado;
+    }
+    
+    // Agregar dígito verificador
+    rutFormateado = rutFormateado + '-' + dv;
+    
+    return rutFormateado;
+  };
+
+  // Actualizar el estado del RUT formateado cuando cambie el RUT
+  useEffect(() => {
+    if (rut) {
+      // Solo formatear si hay al menos 2 caracteres (para evitar formatear mientras escribe)
+      if (rut.length >= 2) {
+        setRutFormateado(formatearRut(rut));
+      } else {
+        setRutFormateado('');
+      }
+    } else {
+      setRutFormateado('');
+    }
+  }, [rut]);
+
   const handleAddEmpresa = async (e) => {
     e.preventDefault();
     if (nombre && rut) {
       try {
+        // Usar el RUT formateado al guardar en Firestore
+        const rutFinal = rutFormateado || formatearRut(rut);
+        
         await addDoc(collection(db, 'empresas'), {
           nombre: nombre,
-          rut: rut
+          rut: rutFinal
         });
         setNombre('');
         setRut('');
+        setRutFormateado('');
       } catch (error) {
         console.error('Error al agregar la empresa:', error);
       }
@@ -53,13 +98,18 @@ function Empresas({ onBack }) {
     if (!empresa) return;
     
     const newNombre = prompt('Nuevo nombre de la empresa:', empresa.nombre);
-    const newRut = prompt('Nuevo RUT de la empresa:', empresa.rut);
+    // Mostrar el RUT sin formato para editar
+    const rutSinFormato = empresa.rut.replace(/\./g, '').replace('-', '');
+    const newRut = prompt('Nuevo RUT de la empresa:', rutSinFormato);
     
     if (newNombre && newRut) {
       try {
+        // Formatear el nuevo RUT antes de guardar
+        const newRutFormateado = formatearRut(newRut);
+        
         await updateDoc(doc(db, 'empresas', id), {
           nombre: newNombre,
-          rut: newRut
+          rut: newRutFormateado
         });
       } catch (error) {
         console.error('Error al editar la empresa:', error);
@@ -94,10 +144,15 @@ function Empresas({ onBack }) {
           <input
             id="rut"
             type="text"
-            placeholder="RUT de la empresa"
+            placeholder="RUT de la empresa (ej: 12345678-9)"
             value={rut}
             onChange={(e) => setRut(e.target.value)}
           />
+          {rutFormateado && (
+            <div className="rut-preview">
+              <small>Vista previa: {rutFormateado}</small>
+            </div>
+          )}
         </div>
         <button type="submit" className="add-button">Agregar Empresa</button>
       </form>
