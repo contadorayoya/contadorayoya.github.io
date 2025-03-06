@@ -21,12 +21,12 @@ const Registro = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
-  const [tiposUsados, setTiposUsados] = useState(new Set()); // Conjunto para rastrear tipos ya usados
   const [existingRegistrosIds, setExistingRegistrosIds] = useState([]); // Para almacenar IDs de registros existentes
   const [isEditing, setIsEditing] = useState(false); // Para saber si estamos editando o creando nuevo
   const [newTipoInput, setNewTipoInput] = useState(""); // Nuevo estado para el input de nuevo tipo
   const [showNewTipoInput, setShowNewTipoInput] = useState(false); // Estado para mostrar/ocultar el input
   const [customTipos, setCustomTipos] = useState([]); // Estado para almacenar tipos personalizados por empresa
+  const [usedTipos, setUsedTipos] = useState([]); // Estado para almacenar tipos utilizados
 
   const meses = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -73,17 +73,6 @@ const Registro = ({ onBack }) => {
       return () => clearTimeout(timer);
     }
   }, [notification.show]);
-
-  // Actualizar tiposUsados cuando cambian los datos
-  useEffect(() => {
-    const usados = new Set();
-    registroForm.datos.forEach(dato => {
-      if (dato.tipo) {
-        usados.add(dato.tipo);
-      }
-    });
-    setTiposUsados(usados);
-  }, [registroForm.datos]);
 
   // Buscar registros existentes cuando se actualiza empresa, mes, año y detalle
   useEffect(() => {
@@ -269,7 +258,7 @@ const Registro = ({ onBack }) => {
     return total;
   };
 
-  // Calcular totales separados para debe y haber
+  // Calcular los totales separados para debe y haber
   const calculateTotals = (datos) => {
     let totalDebe = 0;
     let totalHaber = 0;
@@ -406,7 +395,6 @@ const Registro = ({ onBack }) => {
       }));
       
       setErrors({});
-      setTiposUsados(new Set()); // Reiniciar tipos usados
       setExistingRegistrosIds([]);
       setIsEditing(false);
       
@@ -430,29 +418,40 @@ const Registro = ({ onBack }) => {
   const handleDatoChange = (index, field, value) => {
     const newDatos = [...registroForm.datos];
     
-    // Si estamos cambiando el tipo, verificar si ya está en uso
-    if (field === 'tipo' && value !== "" && tiposUsados.has(value)) {
-      setNotification({
-        show: true,
-        message: `El tipo "${value}" ya ha sido seleccionado`,
-        type: "error"
+    // Si estamos cambiando el tipo, verificar si ya está en uso más de 2 veces
+    if (field === 'tipo' && value !== "") {
+      // Contamos cuántas veces se está usando el tipo sin contar este cambio
+      let usageCount = 0;
+      registroForm.datos.forEach((dato, i) => {
+        if (i !== index && dato.tipo === value) {
+          usageCount++;
+        }
       });
-      return;
+      
+      // Permitir hasta 2 veces (es decir, mostrar error solo si ya hay 2)
+      if (usageCount >= 2) {
+        setNotification({
+          show: true,
+          message: `El tipo "${value}" ya ha sido utilizado 2 veces`,
+          type: "error"
+        });
+        return;
+      }
     }
     
     newDatos[index] = {
       ...newDatos[index],
       [field]: value
     };
-
+  
     const total = calculateTotal(newDatos);
-
+  
     setRegistroForm(prev => ({
       ...prev,
       datos: newDatos,
       total: total
     }));
-
+  
     if (errors[`${field}${index}`]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -514,7 +513,8 @@ const Registro = ({ onBack }) => {
           detalle: prev.datos[0].detalle, // Copiar el detalle del primer dato
           tipo: "", 
           tipoTransaccion: "debe",
-          monto: ""        }
+          monto: ""        
+        }
       ]
     }));
   };
@@ -543,20 +543,30 @@ const Registro = ({ onBack }) => {
     }
   };
 
-  // Filtrar tipos disponibles para cada fila según los ya utilizados
-  const getTiposDisponibles = (currentTipo) => {
-    // Combinar tipos base y personalizados
-    const allTipos = [...tiposBase, ...customTipos];
-    
-    if (currentTipo && tiposUsados.has(currentTipo)) {
-      // Si el tipo actual ya está seleccionado, permitir mantenerlo
-      return allTipos;
+// Filtrar tipos disponibles para cada fila según los ya utilizados (máximo 2 veces)
+const getTiposDisponibles = (currentTipo) => {
+  // Combinar tipos base y personalizados
+  const allTipos = [...tiposBase, ...customTipos];
+  
+  // Si el tipo actual ya está seleccionado, permitir mantenerlo
+  if (currentTipo) {
+    return allTipos;
+  }
+  
+  // Crear un objeto para contar el uso actual de cada tipo
+  const tiposCount = {};
+  registroForm.datos.forEach(dato => {
+    if (dato.tipo) {
+      tiposCount[dato.tipo] = (tiposCount[dato.tipo] || 0) + 1;
     }
-    
-    return allTipos.filter(tipo => 
-      !tiposUsados.has(tipo) || tipo === currentTipo
-    );
-  };
+  });
+  
+  // Filtrar tipos que ya se han usado 2 veces
+  return allTipos.filter(tipo => {
+    const count = tiposCount[tipo] || 0;
+    return count < 2;
+  });
+};
 
   // Calcular los totales para mostrar
   const { totalDebe, totalHaber } = calculateTotals(registroForm.datos);
@@ -714,7 +724,7 @@ const Registro = ({ onBack }) => {
                   className={errors[`tipo${index}`] ? 'error' : ''}
                 >
                   <option value="">Seleccione tipo</option>
-                  {getTiposDisponibles(dato.tipo).map(tipo => (
+                  {getTiposDisponibles(dato.tipo, index).map(tipo => (
                     <option key={tipo} value={tipo}>{tipo}</option>
                   ))}
                 </select>
