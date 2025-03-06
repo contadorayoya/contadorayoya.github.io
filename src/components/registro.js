@@ -243,6 +243,62 @@ const Registro = ({ onBack }) => {
     }
   };
 
+  const handleDeleteRegistro = async () => {
+    if (!isEditing || existingRegistrosIds.length === 0) {
+      return;
+    }
+  
+    setLoading(true);
+  
+    try {
+      // Eliminar los registros existentes
+      const deletePromises = existingRegistrosIds.map(item => {
+        if (typeof item === 'string') {
+          // Es un ID de la colección registros
+          return deleteDoc(doc(db, 'registros', item));
+        } else {
+          // Es un objeto con ID y nombre de colección
+          return deleteDoc(doc(db, item.collection, item.id));
+        }
+      });
+      
+      await Promise.all(deletePromises);
+      
+      // Limpiar el formulario completamente
+      setRegistroForm({
+        empresa: "",
+        mes: "",
+        año: "",
+        datos: [{ 
+          detalle: "", 
+          tipo: "", 
+          tipoTransaccion: "debe",
+          monto: "",
+        }],
+        total: 0
+      });
+      
+      setErrors({});
+      setExistingRegistrosIds([]);
+      setIsEditing(false);
+      
+      setNotification({
+        show: true,
+        message: "Registro eliminado exitosamente",
+        type: "success"
+      });
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      setNotification({
+        show: true,
+        message: "Error al eliminar el registro: " + error.message,
+        type: "error"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const calculateTotal = (datos) => {
     let total = 0;
     
@@ -807,6 +863,19 @@ const getTiposDisponibles = (currentTipo) => {
         >
           {loading ? 'Guardando...' : isEditing ? 'Actualizar Registro' : 'Guardar Registro'}
         </button>
+        
+        {/* Mostrar el botón eliminar solo cuando estamos editando un registro existente */}
+        {isEditing && (
+          <button 
+            onClick={handleDeleteRegistro} 
+            className="delete-button"
+            disabled={loading}
+            type="button"
+          >
+            Eliminar Registro
+          </button>
+        )}
+        
         <button 
           onClick={onBack} 
           className="back-btn"
