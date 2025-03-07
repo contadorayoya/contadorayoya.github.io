@@ -231,7 +231,7 @@ const exportToExcel = async () => {
       const selectedEmpresaData = empresas.find(e => e.nombre === selectedEmpresa);
       const tiposBase = [
         "Caja", "Ingreso", "Costo", "IVA", "PPM", "Ajuste CF", 
-        "Retencion SC", "Honorarios", "Gastos Generales", "Cuentas Varias"
+        "Retencion SC", "Honorarios", "Gastos Generales"
       ];
       
       const tiposPersonalizados = selectedEmpresaData?.tipos_personalizados || [];
@@ -338,6 +338,10 @@ const exportToExcel = async () => {
       
       // Calcular la utilidad del ejercicio
       const diferencia = totalGanancias - totalPerdidas;
+      // Determinar si es utilidad o pérdida
+      const esPerdida = diferencia < 0;
+      const tituloResultado = esPerdida ? 'PÉRDIDA DEL EJERCICIO' : 'UTILIDAD DEL EJERCICIO';
+
       
       // Fila en blanco (separador)
       const filaVacia = {
@@ -369,7 +373,7 @@ const exportToExcel = async () => {
       
       // Fila de utilidad del ejercicio
       const filaUtilidad = {
-        tipo: 'UTILIDAD DEL EJERCICIO',
+        tipo: tituloResultado,
         debe: 0,
         haber: 0,
         saldoDeudor: 0,
@@ -474,12 +478,31 @@ const exportToExcel = async () => {
       newBalanceData[sumasIndex].ganancias = totalGanancias;
     }
     
-    // Calcular la diferencia entre ganancias y pérdidas
+   // Calcular la diferencia entre ganancias y pérdidas
     const diferencia = totalGanancias - totalPerdidas;
-    
+
+    // Determinar si es utilidad o pérdida
+        const esPerdida = totalActivoInventario < totalPasivoInventario;
+        const tituloResultado = esPerdida ? 'PÉRDIDA DEL EJERCICIO' : 'UTILIDAD DEL EJERCICIO';
+          // Fila de utilidad/pérdida del ejercicio
+      const filaUtilidad = {
+        tipo: tituloResultado,
+        debe: 0,
+        haber: 0,
+        saldoDeudor: 0,
+        saldoAcreedor: 0,
+        activoInventario: diferencia < 0 ? Math.abs(diferencia) : 0,
+        pasivoInventario: diferencia > 0 ? diferencia : 0,
+        perdidas: diferencia > 0 ? diferencia : 0,
+        ganancias: diferencia < 0 ? Math.abs(diferencia) : 0,
+        isUtilidad: true
+      };
     // Actualizar la fila de utilidad
     const utilidadIndex = newBalanceData.findIndex(item => item.isUtilidad);
     if (utilidadIndex !== -1) {
+      // Agregar esto justo antes de actualizar newBalanceData[utilidadIndex].tipo
+      console.log("Cambiando título a:", tituloResultado, "Activo:", totalActivoInventario, "Pasivo:", totalPasivoInventario);
+      newBalanceData[utilidadIndex].tipo = tituloResultado;
       newBalanceData[utilidadIndex].saldoDeudor = 0;
       newBalanceData[utilidadIndex].saldoAcreedor = 0;
       newBalanceData[utilidadIndex].activoInventario = diferencia < 0 ? Math.abs(diferencia) : 0;
