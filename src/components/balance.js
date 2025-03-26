@@ -268,8 +268,35 @@ const fetchBalanceData = async () => {
     });
     
     // Ordenar el array por tipo (orden alfabético)
-    balanceArray.sort((a, b) => a.tipo.localeCompare(b.tipo));
+    const ordenCuentas = [
+      "Caja", "Ingreso", "Costo", "IVA", "PPM", "Ajuste CF", 
+      "Retencion SC", "Honorarios", "Gastos Generales"
+    ];
     
+    // Ordenar el array: primero las cuentas principales en orden específico, luego las demás
+    balanceArray.sort((a, b) => {
+      // Índice en el orden específico para la cuenta A
+      const indexA = ordenCuentas.indexOf(a.tipo);
+      // Índice en el orden específico para la cuenta B
+      const indexB = ordenCuentas.indexOf(b.tipo);
+      
+      // Si ambas cuentas están en la lista de orden específico
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB; // Ordenar según la posición en la lista
+      }
+      // Si solo la cuenta A está en la lista
+      if (indexA !== -1) {
+        return -1; // A va primero
+      }
+      // Si solo la cuenta B está en la lista
+      if (indexB !== -1) {
+        return 1; // B va primero
+      }
+      
+      // Si ninguna está en la lista, mantenerlas en el orden en que estaban
+      // Esto preservaría el orden de creación si vienen así de la base de datos
+      return 0;
+    });
     // ID del documento (combina empresa y año)
     const balanceDocId = `${selectedEmpresa}_${selectedAño}`;
     
