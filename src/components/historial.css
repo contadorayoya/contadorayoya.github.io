@@ -487,3 +487,131 @@ tr:hover {
     padding: 4px;
   }
 }
+/* Agregar estos estilos a tu archivo historial.css existente */
+
+/* Sección de totales */
+.totals-section {
+  margin-top: 20px;
+  overflow-x: auto;
+  width: 100%;
+}
+
+/* Contenedor para el encabezado de totales y el botón */
+.totals-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 0 10px;
+}
+
+/* Título de totales */
+.totals-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+  color: #1a73e8;
+}
+
+/* Botón para guardar totales */
+.save-totals-button {
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.save-totals-button:hover {
+  background-color: #0d62c9;
+}
+
+.save-totals-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Estilos para estados del botón */
+.save-totals-button.saving {
+  background-color: #f8c31c;
+  cursor: wait;
+}
+
+.save-totals-button.success {
+  background-color: #34a853;
+}
+
+.save-totals-button.error {
+  background-color: #ea4335;
+}
+
+/* Tabla de totales */
+.totals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Encabezado de totales */
+.totals-header {
+  background-color: #1a73e8;
+  color: white;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Etiqueta en la fila de totales */
+.totals-label {
+  font-weight: bold;
+  text-align: right;
+  padding: 8px 12px;
+  background-color: #e8f0fe;
+}
+
+/* Valores de los totales */
+.total-value {
+  font-weight: bold;
+  text-align: right;
+  padding: 8px;
+}
+
+/* Fila de totales */
+.totals-row {
+  background-color: #f8f9fa;
+}
+
+/* Estilos para alternar colores en celdas de debe y haber en totales */
+.totals-row .debe {
+  background-color: #e6f4ea;  /* Verde claro para debe */
+}
+
+.totals-row .haber {
+  background-color: #f8e0e0;  /* Rojo claro para haber */
+}
+
+/* Celda vacía */
+.empty-cell {
+  background-color: #e8f0fe;
+}
+
+/* Responsive para dispositivos móviles */
+@media (max-width: 768px) {
+  .totals-table {
+    font-size: 12px;
+  }
+  
+  .totals-header, .totals-label, .total-value {
+    padding: 5px;
+  }
+}

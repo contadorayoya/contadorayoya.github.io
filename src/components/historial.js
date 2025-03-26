@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import './historial.css';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 function Historial({ onBack }) {
   const [transactions, setTransactions] = useState([]);
@@ -12,16 +12,22 @@ function Historial({ onBack }) {
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState('');
   const [availableYears, setAvailableYears] = useState([]);
+  const [savingTotals, setSavingTotals] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const meses = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
   ];
 
+  // Lista de tipos predefinidos, actualizada con los nuevos tipos
   const tipos = [
     "Caja", "Ingreso", "Costo", "IVA", "PPM", 
     "Ajuste CF", "Retencion SC", "Honorarios", 
-    "Gastos Generales"
+    "Gastos Generales", "CAPITAL", "PERDIDA Y GANANCIA",
+    "CORRECCION MONETARIA", "AJUSTE PPM", "REA REM PPM", 
+    "REM PPM", "REV CAP PROPIO"
     // "Cuentas Varias" - Eliminado como solicitado
   ];
 
@@ -29,6 +35,15 @@ function Historial({ onBack }) {
   const tableRef = React.useRef(null);
 
   // Cargar la lista de empresas disponibles al montar el componente
+  // Efecto para limpiar mensajes de éxito/error
+  useEffect(() => {
+    // Limpiar mensajes cuando se desmonta el componente
+    return () => {
+      setSaveSuccess(false);
+      setSaveFailed(false);
+    };
+  }, []);
+  
   useEffect(() => {
     const fetchEmpresas = async () => {
       try {
@@ -137,10 +152,13 @@ function Historial({ onBack }) {
   useEffect(() => {
     if (selectedEmpresa && selectedYear && !fetchingEmpresas) {
       handleSearch();
+      // Reiniciar los estados de guardado cuando cambia la selección
+      setSaveSuccess(false);
+      setSaveFailed(false);
     }
   }, [selectedEmpresa, selectedYear]);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!selectedEmpresa) {
       setError("Por favor seleccione una empresa");
       return;
@@ -152,6 +170,8 @@ function Historial({ onBack }) {
 
     setError(null);
     setLoading(true);
+    setSaveSuccess(false);
+    setSaveFailed(false);
     
     // Limpiar transacciones anteriores
     setTransactions([]);
@@ -170,7 +190,7 @@ function Historial({ onBack }) {
       where('año', '==', selectedYear)
     );
 
-    const unsubscribeRegistros = onSnapshot(registrosQuery, (snapshot) => {
+    const unsubscribeRegistros = onSnapshot(registrosQuery, async (snapshot) => {
       const registrosData = snapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data };
@@ -186,7 +206,19 @@ function Historial({ onBack }) {
       }
       
       setTransactions(registrosData);
-      setLoading(false);
+      
+      // Después de cargar los datos, intentar guardar los totales
+      try {
+        // Esperamos un momento para que los datos se procesen y los totales se calculen
+        setTimeout(async () => {
+          await saveTotalsToFirebase();
+        }, 500);
+      } catch (saveError) {
+        console.error("Error al guardar totales:", saveError);
+        setSaveFailed(true);
+      } finally {
+        setLoading(false);
+      }
     }, (error) => {
       console.error("Error fetching registros:", error);
       setError(`Error al cargar los datos: ${error.message}`);
@@ -375,6 +407,225 @@ function Historial({ onBack }) {
     );
   };
 
+  // Función para calcular los totales por tipo
+  const calculateTotals = () => {
+    const totals = {};
+    
+    // Inicializar totales para todos los tipos (predefinidos y personalizados)
+    const allTypes = [...tipos, ...getAllCustomTypes()];
+    
+    allTypes.forEach(tipo => {
+      totals[tipo] = {
+        debe: 0,
+        haber: 0
+      };
+    });
+    
+    // Sumar todos los valores de todas las transacciones
+    meses.forEach(mes => {
+      const monthTransactions = getMonthTransactions(mes);
+      
+      monthTransactions.forEach(transaction => {
+        // Procesar valores "debe"
+        if (transaction.debe) {
+          Object.entries(transaction.debe).forEach(([tipo, valor]) => {
+            if (allTypes.includes(tipo) && valor !== undefined && valor !== null) {
+              totals[tipo].debe += parseFloat(valor) || 0;
+            }
+          });
+        }
+        
+        // Procesar valores "haber"
+        if (transaction.haber) {
+          Object.entries(transaction.haber).forEach(([tipo, valor]) => {
+            if (allTypes.includes(tipo) && valor !== undefined && valor !== null) {
+              totals[tipo].haber += parseFloat(valor) || 0;
+            }
+          });
+        }
+      });
+    });
+    
+    return totals;
+  };
+
+  // Función para guardar los totales en Firebase
+  const saveTotalsToFirebase = async () => {
+    if (!selectedEmpresa || !selectedYear || !transactions.length) {
+      console.log("No se puede guardar: Faltan datos o no hay transacciones");
+      return false;
+    }
+    
+    try {
+      setSavingTotals(true);
+      setSaveSuccess(false);
+      setSaveFailed(false);
+      
+      const totals = calculateTotals();
+      const customTypes = getAllCustomTypes();
+      
+      // Estructura de datos para guardar en Firestore, siguiendo el formato solicitado
+      const totalsData = {
+        empresa: selectedEmpresa,
+        año: selectedYear,
+        fechaActualizacion: serverTimestamp(),
+      };
+      
+      // Agregar todos los tipos a la raíz del documento
+      // Esto incluye tanto los tipos predefinidos como los personalizados
+      [...tipos, ...customTypes].forEach(tipo => {
+        totalsData[tipo] = {
+          debito: totals[tipo].debe || 0,
+          credito: totals[tipo].haber || 0
+        };
+      });
+      
+      // Si existe alguno de los tipos especiales que aparecen en los datos de ejemplo
+      // y no están en la lista de tipos, asegúrate de que también estén en el documento
+      const specialTypes = [
+        "PROVEDORES", "REAJUSTE REMANENTE PPM", "REMANENTE PPM", "REV CAPITAL PROPIO"
+      ];
+      
+      specialTypes.forEach(tipo => {
+        if (!totalsData[tipo]) {
+          totalsData[tipo] = {
+            debito: 0,
+            credito: 0
+          };
+        }
+      });
+      
+      // Crear un ID único para el documento basado en empresa y año
+      const docId = `${selectedEmpresa}_${selectedYear}`.replace(/\s+/g, '_');
+      
+      // Guardar en Firestore
+      await setDoc(doc(db, 'totales', docId), totalsData);
+      
+      console.log(`Totales guardados en Firestore con ID: ${docId}`);
+      setSaveSuccess(true);
+      
+      // Resetear el mensaje de éxito después de 3 segundos
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+      
+      return true;
+    } catch (error) {
+      console.error("Error al guardar totales en Firestore:", error);
+      console.log(`Error: ${error.message}`);
+      setSaveFailed(true);
+      
+      // Resetear el mensaje de error después de 3 segundos
+      setTimeout(() => {
+        setSaveFailed(false);
+      }, 3000);
+      
+      return false;
+    } finally {
+      setSavingTotals(false);
+    }
+  };
+
+  // Función para renderizar la tabla de totales
+  const renderTotalsTable = () => {
+    const totals = calculateTotals();
+    const customTypes = getAllCustomTypes();
+    
+    // Agregar tipos especiales que pueden no aparecer en las transacciones
+    const specialTypes = [
+      "PROVEDORES", "REAJUSTE REMANENTE PPM", "REMANENTE PPM", "REV CAPITAL PROPIO"
+    ].filter(tipo => !tipos.includes(tipo) && !customTypes.includes(tipo));
+    
+    return (
+      <>
+        <div className="totals-header-container">
+          <h2 className="totals-title">TOTALES</h2>
+          {saveSuccess && <span className="save-success-message">Datos guardados correctamente</span>}
+          {saveFailed && <span className="save-error-message">Error al guardar datos</span>}
+        </div>
+        
+        <table className="totals-table">
+          <thead>
+            <tr>
+              <th colSpan="2" className="totals-header">TOTALES</th>
+              {tipos.map(tipo => (
+                <th key={`total-header-${tipo}`} colSpan="2" className="tipo-header">
+                  {tipo}
+                </th>
+              ))}
+              {customTypes.map(tipo => (
+                <th key={`total-header-custom-${tipo}`} colSpan="2" className="tipo-header">
+                  {tipo}
+                </th>
+              ))}
+              {specialTypes.map(tipo => (
+                <th key={`total-header-special-${tipo}`} colSpan="2" className="tipo-header">
+                  {tipo}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              <th className="empty-cell" colSpan="2"></th>
+              {tipos.map(tipo => (
+                <React.Fragment key={`total-subheader-${tipo}`}>
+                  <th className="debe-header">Debe</th>
+                  <th className="haber-header">Haber</th>
+                </React.Fragment>
+              ))}
+              {customTypes.map(tipo => (
+                <React.Fragment key={`total-subheader-custom-${tipo}`}>
+                  <th className="debe-header">Debe</th>
+                  <th className="haber-header">Haber</th>
+                </React.Fragment>
+              ))}
+              {specialTypes.map(tipo => (
+                <React.Fragment key={`total-subheader-special-${tipo}`}>
+                  <th className="debe-header">Debe</th>
+                  <th className="haber-header">Haber</th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="totals-row">
+              <td colSpan="2" className="totals-label">Suma Total</td>
+              {tipos.map(tipo => (
+                <React.Fragment key={`total-values-${tipo}`}>
+                  <td className="monto-cell debe total-value">
+                    {formatCurrency(totals[tipo]?.debe || 0)}
+                  </td>
+                  <td className="monto-cell haber total-value">
+                    {formatCurrency(totals[tipo]?.haber || 0)}
+                  </td>
+                </React.Fragment>
+              ))}
+              {customTypes.map(tipo => (
+                <React.Fragment key={`total-values-custom-${tipo}`}>
+                  <td className="monto-cell debe total-value">
+                    {formatCurrency(totals[tipo]?.debe || 0)}
+                  </td>
+                  <td className="monto-cell haber total-value">
+                    {formatCurrency(totals[tipo]?.haber || 0)}
+                  </td>
+                </React.Fragment>
+              ))}
+              {specialTypes.map(tipo => (
+                <React.Fragment key={`total-values-special-${tipo}`}>
+                  <td className="monto-cell debe total-value">
+                    {formatCurrency(0)}
+                  </td>
+                  <td className="monto-cell haber total-value">
+                    {formatCurrency(0)}
+                  </td>
+                </React.Fragment>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </>
+    );
+  };
+
   return (
     <div className="historial-container">
       <div className="header-container">
@@ -425,9 +676,9 @@ function Historial({ onBack }) {
             <button
               onClick={handleSearch}
               disabled={!selectedEmpresa || !selectedYear || loading || fetchingEmpresas}
-              className="search-button"
+              className={`search-button ${loading ? 'loading' : ''} ${savingTotals ? 'saving' : ''}`}
             >
-              {loading ? "Cargando..." : "Buscar"}
+              {loading ? "Cargando..." : savingTotals ? "Buscar y Guardar" : "Buscar y Guardar"}
             </button>
           </div>
         </div>
@@ -440,50 +691,57 @@ function Historial({ onBack }) {
       ) : (
         <div className="results-container">
           {transactions.length > 0 ? (
-            <div className="table-wrapper">
-              <table className="historial-table" ref={tableRef}>
-                <thead>
-                  <tr>
-                    <th className="fixed-column mes-header" rowSpan="2">Mes</th>
-                    <th className="fixed-column detalle-header" rowSpan="2">Detalle</th>
-                    <th className="fixed-column control-header" rowSpan="2">Control</th>
-                    
-                    {tipos.map(tipo => (
-                      <th className="tipo-header" key={`header-${tipo}`} colSpan="2">
-                        {tipo}
-                      </th>
-                    ))}
-                    
-                    {/* Encabezados para tipos personalizados */}
-                    {getAllCustomTypes().map(tipo => (
-                      <th className="tipo-header" key={`header-custom-${tipo}`} colSpan="2">
-                        {tipo}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {/* Subencabezados para tipos regulares */}
-                    {tipos.map(tipo => (
-                      <React.Fragment key={`subheader-${tipo}`}>
-                        <th className="debe-header">Debe</th>
-                        <th className="haber-header">Haber</th>
-                      </React.Fragment>
-                    ))}
-                    
-                    {/* Subencabezados para tipos personalizados */}
-                    {getAllCustomTypes().map(tipo => (
-                      <React.Fragment key={`subheader-custom-${tipo}`}>
-                        <th className="debe-header">Debe</th>
-                        <th className="haber-header">Haber</th>
-                      </React.Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {meses.map(mes => renderMonthRows(mes))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="table-wrapper">
+                <table className="historial-table" ref={tableRef}>
+                  <thead>
+                    <tr>
+                      <th className="fixed-column mes-header" rowSpan="2">Mes</th>
+                      <th className="fixed-column detalle-header" rowSpan="2">Detalle</th>
+                      <th className="fixed-column control-header" rowSpan="2">Control</th>
+                      
+                      {tipos.map(tipo => (
+                        <th className="tipo-header" key={`header-${tipo}`} colSpan="2">
+                          {tipo}
+                        </th>
+                      ))}
+                      
+                      {/* Encabezados para tipos personalizados */}
+                      {getAllCustomTypes().map(tipo => (
+                        <th className="tipo-header" key={`header-custom-${tipo}`} colSpan="2">
+                          {tipo}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr>
+                      {/* Subencabezados para tipos regulares */}
+                      {tipos.map(tipo => (
+                        <React.Fragment key={`subheader-${tipo}`}>
+                          <th className="debe-header">Debe</th>
+                          <th className="haber-header">Haber</th>
+                        </React.Fragment>
+                      ))}
+                      
+                      {/* Subencabezados para tipos personalizados */}
+                      {getAllCustomTypes().map(tipo => (
+                        <React.Fragment key={`subheader-custom-${tipo}`}>
+                          <th className="debe-header">Debe</th>
+                          <th className="haber-header">Haber</th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {meses.map(mes => renderMonthRows(mes))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Tabla de totales debajo de la tabla principal */}
+              <div className="totals-section">
+                {renderTotalsTable()}
+              </div>
+            </>
           ) : (
             selectedEmpresa && selectedYear && !loading ? (
               <div className="no-results">No se encontraron registros para los criterios seleccionados.</div>

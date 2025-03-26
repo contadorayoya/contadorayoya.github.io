@@ -7,7 +7,6 @@ import Empresas from './components/Empresas';
 import Registro from './components/registro';
 import Balance from './components/balance';
 
-
 function App() {
   const [view, setView] = useState("main");
   const [transactions, setTransactions] = useState([]);
@@ -72,7 +71,6 @@ function App() {
       {view === "empresas" && <Empresas onBack={handleBackToMain} />}
       {view === "Registro" && <Registro onBack={handleBackToMain} />}
       {view === "balance" && <Balance onBack={handleBackToMain} />}
-
     </div>
   );
 }  
